@@ -1,92 +1,58 @@
 //SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0;
+pragma solidity >=0.8.20;
 
-contract Betting{
-    struct bet{
-        address payable better;
-        uint amount;
-        uint team_no;
+contract voting{
+    struct candidiate{
+        string cname;
+        uint votes;
     }
-
-    bet[] public bets;
-    // 0. (0x1093, 1eth, 1)
-    // 1. (0x3842, 2eth, 2)
-
-    uint public team1_amount=0;
-    uint public team2_amount=0;
-    uint public total_bets=0;
-    uint public result;
-
+    mapping(uint => candidiate) public candidiatemp;
+    uint public cid = 0;
+    mapping(address => bool) public alreadyvoted;
+    bool public votingopen = true;
     address public owner;
-    uint public min_bet_amount;
-    constructor(uint _min_bet_amount){
+    constructor(){
         owner = msg.sender;
-        min_bet_amount = _min_bet_amount;
-    }
 
+    }
     modifier onlyOwner{
-        require(msg.sender == owner, "Not contract owner");
+        require(msg.sender==owner,"Not contract owner");
         _;
     }
-
-    string public team1_name;
-    string public team2_name;
-    bool public teams_set=false;
-    bool public betting_open=false;
-    bool public match_ended=false;
-
-    function set_team_names(string memory _team1, string memory _team2) onlyOwner public{
-        require(teams_set==false, "team names are already set");
-        team1_name = _team1;
-        team2_name = _team2;
-        teams_set = true;
-        betting_open= true;
+    function add_candidiate(string memory _candidiate_name) onlyOwner public{
+        cid++;
+        candidiatemp[cid]=candidiate(_candidiate_name,0);
+        
     }
-
-    function put_bet(uint team_no) public payable {
-        require(teams_set==true, "team names not set");
-        require(betting_open == true, "Bettings not open");
-        require(team_no == 1 || team_no == 2, "Invalid team no");
-        require(msg.value >= min_bet_amount, "Increase amount");
-
-        bets.push(bet(payable(msg.sender), msg.value, team_no));
-
-        if(team_no == 1) team1_amount += msg.value;
-        else team2_amount += msg.value;
-
-        total_bets++;
+    function cast_vote(uint _cid) public{
+        require(alreadyvoted[msg.sender] ==false,"you have already voted");
+        require(_cid>0&&_cid<=cid,"Invalid cid");
+        require(votingopen==true,"voting closed");
+        candidiatemp[_cid].votes++;
+        alreadyvoted[msg.sender] = true;
     }
-
-    function close_betting() public onlyOwner{
-        require(betting_open==true, "Betting already closed!");
-        betting_open = false;
+    function view_votes(uint _cid) public view returns(string memory,uint ){
+        require(_cid>0&&_cid<=cid,"Invalid cid");
+        return (candidiatemp[_cid].cname,candidiatemp[_cid].votes);
     }
-
-    function declare_result(uint winner) public onlyOwner{
-        require(betting_open==false, "betting is still open");
-        require(winner == 1 || winner == 2, "invalid team no.");
-        result = winner;
-        match_ended = true;
+    function close_voting() public onlyOwner{
+        require(votingopen==true, "voting already closed!");
+        votingopen = false;
     }
-
-    function distribute_amount() public onlyOwner payable {
-        require(match_ended == true, "match is still running");
-
-        uint winning_team_amount = 0;
-
-        if(result == 1) winning_team_amount = team1_amount;
-        else winning_team_amount = team2_amount;
-
-        uint losing_team_amount = 0;
-
-        if(result == 1) losing_team_amount = team2_amount;
-        else losing_team_amount = team1_amount; 
-
-        for(uint i = 0; i < total_bets; i++){
-            if(bets[i].team_no == result){
-                uint ret_amount = ((bets[i].amount * losing_team_amount) / winning_team_amount) + bets[i].amount;
-                bets[i].better.transfer(ret_amount);  
+    //I am considering those who registered first are declared winner incase of equal votes
+    
+    function see_result() public view returns(uint,string memory,uint){
+        require(votingopen==false, "voting is still open!");
+        require(cid > 0, "No candidates registered yet");
+        uint wincid=1;
+        for (uint i=2;i<=cid;i++){
+            if (candidiatemp[i].votes>candidiatemp[wincid].votes){
+                wincid=i;
             }
         }
+        return(wincid,candidiatemp[wincid].cname,candidiatemp[wincid].votes);
+        
+        
     }
 }
+
